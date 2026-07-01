@@ -1,11 +1,30 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { MapContainer, TileLayer, Polyline, CircleMarker, Tooltip, useMap } from "react-leaflet";
-import { LatLngBounds, type LatLngExpression } from "leaflet";
+import { MapContainer, TileLayer, Polyline, CircleMarker, Marker, Tooltip, useMap } from "react-leaflet";
+import { LatLngBounds, divIcon, type LatLngExpression } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { decodePolyline } from "@/lib/polyline";
 import type { RoutePoint, TollPlazaDto } from "@/lib/types";
+
+type WaypointKind = "origin" | "destination" | "stop";
+
+const WAYPOINT_COLOR: Record<WaypointKind, string> = {
+  origin: "#1f1f1f",
+  destination: "#fa520f",
+  stop: "#ffb83e",
+};
+
+/** Ícone em div (sem imagem externa) — evita o path quebrado do ícone padrão do Leaflet sob bundlers. */
+function waypointIcon(kind: WaypointKind) {
+  const size = kind === "stop" ? 12 : 16;
+  return divIcon({
+    className: "",
+    html: `<span style="display:block;width:${size}px;height:${size}px;border-radius:9999px;background:${WAYPOINT_COLOR[kind]};border:2px solid #1f1f1f;box-sizing:border-box;"></span>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  });
+}
 
 interface RouteMapProps {
   geometry?: string | null;
@@ -74,27 +93,14 @@ export default function RouteMap({
           <Polyline positions={line} pathOptions={{ color: "#fa520f", weight: 5, opacity: 0.9 }} />
         )}
 
-        {waypoints.map((w, i) => {
-          const isEnd = w.kind === "origin" || w.kind === "destination";
-          return (
-            <CircleMarker
-              key={`wp-${i}`}
-              center={[w.point.lat, w.point.lon]}
-              radius={isEnd ? 8 : 6}
-              pathOptions={{
-                color: "#1f1f1f",
-                weight: 2,
-                fillColor: w.kind === "origin" ? "#1f1f1f" : w.kind === "destination" ? "#fa520f" : "#ffb83e",
-                fillOpacity: 1,
-              }}
-            >
-              <Tooltip>
-                {w.kind === "origin" ? "Origem" : w.kind === "destination" ? "Destino" : "Parada"}
-                {w.point.label ? ` — ${w.point.label}` : ""}
-              </Tooltip>
-            </CircleMarker>
-          );
-        })}
+        {waypoints.map((w, i) => (
+          <Marker key={`wp-${i}`} position={[w.point.lat, w.point.lon]} icon={waypointIcon(w.kind)}>
+            <Tooltip>
+              {w.kind === "origin" ? "Origem" : w.kind === "destination" ? "Destino" : "Parada"}
+              {w.point.label ? ` — ${w.point.label}` : ""}
+            </Tooltip>
+          </Marker>
+        ))}
 
         {tollPlazas.map((t, i) => (
           <CircleMarker
