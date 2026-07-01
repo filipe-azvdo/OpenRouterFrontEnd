@@ -10,6 +10,7 @@ import { RouteSummary } from "./RouteSummary";
 import { TollPlazaList } from "./TollPlazaList";
 import { ApiError, createRoute, planRoute } from "@/lib/api";
 import { PROFILES, type Profile, type RoutePlanRequest, type RoutePoint } from "@/lib/types";
+import type { WaypointKind } from "./RouteMap";
 
 const RouteMap = dynamic(() => import("./RouteMap"), {
   ssr: false,
@@ -285,6 +286,28 @@ export function RoutePlanner() {
     applyMapEditAndRecalculate({ origin, destination, stops: [...stops, clicked] });
   }
 
+  function handleMarkerDragEnd(
+    kind: WaypointKind,
+    stopIndex: number | null,
+    point: { lat: number; lon: number },
+  ) {
+    const lat = String(point.lat);
+    const lon = String(point.lon);
+
+    if (kind === "origin") {
+      applyMapEditAndRecalculate({ origin: { ...origin, lat, lon }, destination, stops });
+      return;
+    }
+    if (kind === "destination") {
+      applyMapEditAndRecalculate({ origin, destination: { ...destination, lat, lon }, stops });
+      return;
+    }
+    if (stopIndex !== null) {
+      const nextStops = stops.map((s, i) => (i === stopIndex ? { ...s, lat, lon } : s));
+      applyMapEditAndRecalculate({ origin, destination, stops: nextStops });
+    }
+  }
+
   function loadExample() {
     setOrigin(EXAMPLE.origin);
     setDestination(EXAMPLE.destination);
@@ -392,6 +415,7 @@ export function RoutePlanner() {
           stops={mapStops}
           tollPlazas={result?.tollPlazas}
           onMapClick={handleMapClick}
+          onMarkerDragEnd={handleMarkerDragEnd}
           locked={mapBusy}
         />
 
