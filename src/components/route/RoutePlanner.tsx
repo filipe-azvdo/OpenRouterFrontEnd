@@ -134,6 +134,8 @@ export function RoutePlanner() {
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [result, setResult] = useState<ResultState | null>(null);
+  // true enquanto um recálculo disparado por edição no mapa (clique/drag/remoção) está em andamento.
+  const [mapBusy, setMapBusy] = useState(false);
 
   // Pontos "ao vivo" do formulário — fonte de verdade do mapa, independente de já haver um cálculo.
   const mapOrigin = useMemo(() => pointOrNull(origin), [origin]);
@@ -214,6 +216,73 @@ export function RoutePlanner() {
     } finally {
       setLoading(null);
     }
+  }
+
+  /**
+   * Aplica uma edição vinda do mapa (clique, drag ou remoção de parada): atualiza o formulário
+   * de forma otimista e, se origem+destino ficarem válidos, recalcula a rota. Em caso de falha,
+   * reverte para o estado anterior à edição (compartilhado pelos três fluxos de edição no mapa).
+   */
+  async function applyMapEditAndRecalculate(next: {
+    origin: PointForm;
+    destination: PointForm;
+    stops: PointForm[];
+  }) {
+    const snapshot = { origin, destination, stops };
+    setOrigin(next.origin);
+    setDestination(next.destination);
+    setStops(next.stops);
+    setError(null);
+    setSavedMsg(null);
+
+    if (!isValidPoint(next.origin) || !isValidPoint(next.destination)) return;
+
+    setMapBusy(true);
+    try {
+      const req: RoutePlanRequest = {
+        profile,
+        origin: toPoint(next.origin),
+        destination: toPoint(next.destination),
+        stops: next.stops.filter(isValidPoint).map(toPoint),
+        name: name.trim() || null,
+      };
+      const res = await planRoute(req);
+      setResult({
+        profile: res.profile,
+        distanceMeters: res.distanceMeters,
+        durationSeconds: res.durationSeconds,
+        geometry: res.geometry,
+        tollPlazas: res.tollPlazas,
+        origin: req.origin,
+        destination: req.destination,
+        stops: req.stops ?? [],
+      });
+    } catch (e) {
+      setOrigin(snapshot.origin);
+      setDestination(snapshot.destination);
+      setStops(snapshot.stops);
+      setError(e instanceof ApiError ? e.message : "Falha ao recalcular a rota.");
+    } finally {
+      setMapBusy(false);
+    }
+  }
+
+  function handleMapClick(point: { lat: number; lon: number }) {
+    const clicked: PointForm = { lat: String(point.lat), lon: String(point.lon), label: "" };
+
+    if (!isValidPoint(origin)) {
+      applyMapEditAndRecalculate({ origin: clicked, destination, stops });
+      return;
+    }
+    if (!isValidPoint(destination)) {
+      applyMapEditAndRecalculate({ origin, destination: clicked, stops });
+      return;
+    }
+    if (stops.length >= 10) {
+      setError("Limite de 10 paradas atingido.");
+      return;
+    }
+    applyMapEditAndRecalculate({ origin, destination, stops: [...stops, clicked] });
   }
 
   function loadExample() {
@@ -322,6 +391,8 @@ export function RoutePlanner() {
           destination={mapDestination}
           stops={mapStops}
           tollPlazas={result?.tollPlazas}
+          onMapClick={handleMapClick}
+          locked={mapBusy}
         />
 
         {result ? (
