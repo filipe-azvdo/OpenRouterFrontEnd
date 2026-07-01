@@ -7,12 +7,14 @@ import {
   Polyline,
   CircleMarker,
   Marker,
+  Popup,
   Tooltip,
   useMap,
   useMapEvents,
 } from "react-leaflet";
 import { DomEvent, LatLngBounds, divIcon, type LatLngExpression } from "leaflet";
 import "leaflet/dist/leaflet.css";
+import { Button } from "@/components/ui/Button";
 import { decodePolyline } from "@/lib/polyline";
 import type { RoutePoint, TollPlazaDto } from "@/lib/types";
 
@@ -46,6 +48,8 @@ interface RouteMapProps {
   onMapClick?: (point: { lat: number; lon: number }) => void;
   /** Soltar um marcador arrastado. `stopIndex` só é relevante quando `kind === "stop"`. */
   onMarkerDragEnd?: (kind: WaypointKind, stopIndex: number | null, point: { lat: number; lon: number }) => void;
+  /** Remove a parada pelo botão do popup do seu marcador — omitido não mostra o popup de remoção. */
+  onRemoveStop?: (stopIndex: number) => void;
   /** Enquanto true, ignora cliques no mapa e desabilita o arraste dos marcadores (recálculo em andamento). */
   locked?: boolean;
 }
@@ -91,6 +95,7 @@ export default function RouteMap({
   className = "",
   onMapClick,
   onMarkerDragEnd,
+  onRemoveStop,
   locked = false,
 }: RouteMapProps) {
   const line = useMemo(() => decodePolyline(geometry), [geometry]);
@@ -145,6 +150,23 @@ export default function RouteMap({
               {w.kind === "origin" ? "Origem" : w.kind === "destination" ? "Destino" : "Parada"}
               {w.point.label ? ` — ${w.point.label}` : ""}
             </Tooltip>
+            {w.kind === "stop" && onRemoveStop && (
+              <Popup>
+                <div onClick={(e) => e.stopPropagation()}>
+                  <p className="mb-2 text-sm font-medium text-ink">
+                    Parada{w.point.label ? ` — ${w.point.label}` : ""}
+                  </p>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    className="px-0 py-0"
+                    onClick={() => onRemoveStop(w.stopIndex as number)}
+                  >
+                    Remover
+                  </Button>
+                </div>
+              </Popup>
+            )}
           </Marker>
         ))}
 
