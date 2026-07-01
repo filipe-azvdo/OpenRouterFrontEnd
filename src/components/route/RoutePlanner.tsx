@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/Button";
 import { Card } from "@/components/ui/Card";
@@ -69,6 +69,11 @@ function isValidPoint(p: PointForm): boolean {
   );
 }
 
+/** Converte para RoutePoint só se as coordenadas forem válidas — usado para alimentar o mapa com o estado "ao vivo" do formulário. */
+function pointOrNull(p: PointForm): RoutePoint | null {
+  return isValidPoint(p) ? toPoint(p) : null;
+}
+
 function PointFields({
   legend,
   value,
@@ -129,6 +134,11 @@ export function RoutePlanner() {
   const [error, setError] = useState<string | null>(null);
   const [savedMsg, setSavedMsg] = useState<string | null>(null);
   const [result, setResult] = useState<ResultState | null>(null);
+
+  // Pontos "ao vivo" do formulário — fonte de verdade do mapa, independente de já haver um cálculo.
+  const mapOrigin = useMemo(() => pointOrNull(origin), [origin]);
+  const mapDestination = useMemo(() => pointOrNull(destination), [destination]);
+  const mapStops = useMemo(() => stops.map(pointOrNull).filter((p): p is RoutePoint => p !== null), [stops]);
 
   function buildRequest(): RoutePlanRequest | null {
     if (!isValidPoint(origin)) {
@@ -294,52 +304,38 @@ export function RoutePlanner() {
 
       {/* Resultado */}
       <div className="flex flex-col gap-6">
-        {result ? (
-          <>
-            <Card>
-              <RouteSummary
-                profile={result.profile}
-                distanceMeters={result.distanceMeters}
-                durationSeconds={result.durationSeconds}
-                tollCount={result.tollPlazas.length}
-              />
-            </Card>
-
-            <RouteMap
-              className="min-h-[420px]"
-              geometry={result.geometry}
-              origin={result.origin}
-              destination={result.destination}
-              stops={result.stops}
-              tollPlazas={result.tollPlazas}
+        {result && (
+          <Card>
+            <RouteSummary
+              profile={result.profile}
+              distanceMeters={result.distanceMeters}
+              durationSeconds={result.durationSeconds}
+              tollCount={result.tollPlazas.length}
             />
-
-            <Card>
-              <h3 className="mb-3 text-base font-semibold text-ink">
-                Pedágios no trajeto ({result.tollPlazas.length})
-              </h3>
-              <TollPlazaList tollPlazas={result.tollPlazas} />
-            </Card>
-          </>
-        ) : (
-          <Card className="flex min-h-[420px] flex-col items-center justify-center text-center">
-            <div className="sunset-hero mb-4 flex size-16 items-center justify-center rounded-full text-on-primary">
-              <svg viewBox="0 0 24 24" className="size-7" fill="none" aria-hidden="true">
-                <path
-                  d="M12 21s-6.5-5.6-6.5-10A6.5 6.5 0 0 1 12 4.5 6.5 6.5 0 0 1 18.5 11c0 4.4-6.5 10-6.5 10Z"
-                  stroke="currentColor"
-                  strokeWidth="1.8"
-                  strokeLinejoin="round"
-                />
-                <circle cx="12" cy="11" r="2.2" stroke="currentColor" strokeWidth="1.8" />
-              </svg>
-            </div>
-            <p className="font-editorial text-2xl text-ink">Sua rota aparece aqui</p>
-            <p className="mt-2 max-w-sm text-sm text-steel">
-              Informe origem e destino (ou clique em <strong>Usar exemplo</strong>) e calcule
-              para ver distância, duração, mapa e pedágios.
-            </p>
           </Card>
+        )}
+
+        <RouteMap
+          className="min-h-[420px]"
+          geometry={result?.geometry}
+          origin={mapOrigin}
+          destination={mapDestination}
+          stops={mapStops}
+          tollPlazas={result?.tollPlazas}
+        />
+
+        {result ? (
+          <Card>
+            <h3 className="mb-3 text-base font-semibold text-ink">
+              Pedágios no trajeto ({result.tollPlazas.length})
+            </h3>
+            <TollPlazaList tollPlazas={result.tollPlazas} />
+          </Card>
+        ) : (
+          <Alert tone="info">
+            Clique no mapa para definir origem e destino, ou preencha o formulário ao lado e
+            calcule.
+          </Alert>
         )}
       </div>
     </div>
