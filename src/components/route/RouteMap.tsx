@@ -1,8 +1,17 @@
 "use client";
 
 import { useEffect, useMemo } from "react";
-import { MapContainer, TileLayer, Polyline, CircleMarker, Marker, Tooltip, useMap } from "react-leaflet";
-import { LatLngBounds, divIcon, type LatLngExpression } from "leaflet";
+import {
+  MapContainer,
+  TileLayer,
+  Polyline,
+  CircleMarker,
+  Marker,
+  Tooltip,
+  useMap,
+  useMapEvents,
+} from "react-leaflet";
+import { DomEvent, LatLngBounds, divIcon, type LatLngExpression } from "leaflet";
 import "leaflet/dist/leaflet.css";
 import { decodePolyline } from "@/lib/polyline";
 import type { RoutePoint, TollPlazaDto } from "@/lib/types";
@@ -33,6 +42,26 @@ interface RouteMapProps {
   stops?: RoutePoint[];
   tollPlazas?: TollPlazaDto[];
   className?: string;
+  /** Clique em área vazia do mapa (não em um marcador) — omitido mantém o mapa somente leitura. */
+  onMapClick?: (point: { lat: number; lon: number }) => void;
+  /** Enquanto true, ignora cliques no mapa (recálculo em andamento). */
+  locked?: boolean;
+}
+
+function ClickHandler({
+  onClick,
+  disabled,
+}: {
+  onClick?: (point: { lat: number; lon: number }) => void;
+  disabled?: boolean;
+}) {
+  useMapEvents({
+    click(e) {
+      if (disabled || !onClick) return;
+      onClick({ lat: e.latlng.lat, lon: e.latlng.lng });
+    },
+  });
+  return null;
 }
 
 /** Centro default: Brasil (caso não haja pontos). */
@@ -58,6 +87,8 @@ export default function RouteMap({
   stops = [],
   tollPlazas = [],
   className = "",
+  onMapClick,
+  locked = false,
 }: RouteMapProps) {
   const line = useMemo(() => decodePolyline(geometry), [geometry]);
 
@@ -94,7 +125,12 @@ export default function RouteMap({
         )}
 
         {waypoints.map((w, i) => (
-          <Marker key={`wp-${i}`} position={[w.point.lat, w.point.lon]} icon={waypointIcon(w.kind)}>
+          <Marker
+            key={`wp-${i}`}
+            position={[w.point.lat, w.point.lon]}
+            icon={waypointIcon(w.kind)}
+            eventHandlers={{ click: (e) => DomEvent.stopPropagation(e) }}
+          >
             <Tooltip>
               {w.kind === "origin" ? "Origem" : w.kind === "destination" ? "Destino" : "Parada"}
               {w.point.label ? ` — ${w.point.label}` : ""}
@@ -118,6 +154,7 @@ export default function RouteMap({
         ))}
 
         <FitBounds points={allPoints} />
+        <ClickHandler onClick={onMapClick} disabled={locked} />
       </MapContainer>
     </div>
   );
