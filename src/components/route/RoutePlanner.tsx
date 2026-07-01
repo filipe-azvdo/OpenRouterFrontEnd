@@ -308,6 +308,14 @@ export function RoutePlanner() {
     }
   }
 
+  function handleRemoveStop(stopIndex: number) {
+    applyMapEditAndRecalculate({
+      origin,
+      destination,
+      stops: stops.filter((_, i) => i !== stopIndex),
+    });
+  }
+
   function loadExample() {
     setOrigin(EXAMPLE.origin);
     setDestination(EXAMPLE.destination);
@@ -416,6 +424,7 @@ export function RoutePlanner() {
           tollPlazas={result?.tollPlazas}
           onMapClick={handleMapClick}
           onMarkerDragEnd={handleMarkerDragEnd}
+          onRemoveStop={handleRemoveStop}
           locked={mapBusy}
         />
 
