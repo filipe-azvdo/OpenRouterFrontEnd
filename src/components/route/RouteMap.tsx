@@ -16,7 +16,7 @@ import "leaflet/dist/leaflet.css";
 import { decodePolyline } from "@/lib/polyline";
 import type { RoutePoint, TollPlazaDto } from "@/lib/types";
 
-type WaypointKind = "origin" | "destination" | "stop";
+export type WaypointKind = "origin" | "destination" | "stop";
 
 const WAYPOINT_COLOR: Record<WaypointKind, string> = {
   origin: "#1f1f1f",
@@ -44,7 +44,9 @@ interface RouteMapProps {
   className?: string;
   /** Clique em área vazia do mapa (não em um marcador) — omitido mantém o mapa somente leitura. */
   onMapClick?: (point: { lat: number; lon: number }) => void;
-  /** Enquanto true, ignora cliques no mapa (recálculo em andamento). */
+  /** Soltar um marcador arrastado. `stopIndex` só é relevante quando `kind === "stop"`. */
+  onMarkerDragEnd?: (kind: WaypointKind, stopIndex: number | null, point: { lat: number; lon: number }) => void;
+  /** Enquanto true, ignora cliques no mapa e desabilita o arraste dos marcadores (recálculo em andamento). */
   locked?: boolean;
 }
 
@@ -88,15 +90,16 @@ export default function RouteMap({
   tollPlazas = [],
   className = "",
   onMapClick,
+  onMarkerDragEnd,
   locked = false,
 }: RouteMapProps) {
   const line = useMemo(() => decodePolyline(geometry), [geometry]);
 
   const waypoints = useMemo(() => {
-    const pts: { point: RoutePoint; kind: "origin" | "destination" | "stop" }[] = [];
-    if (origin) pts.push({ point: origin, kind: "origin" });
-    stops.forEach((s) => pts.push({ point: s, kind: "stop" }));
-    if (destination) pts.push({ point: destination, kind: "destination" });
+    const pts: { point: RoutePoint; kind: WaypointKind; stopIndex: number | null }[] = [];
+    if (origin) pts.push({ point: origin, kind: "origin", stopIndex: null });
+    stops.forEach((s, idx) => pts.push({ point: s, kind: "stop", stopIndex: idx }));
+    if (destination) pts.push({ point: destination, kind: "destination", stopIndex: null });
     return pts;
   }, [origin, destination, stops]);
 
@@ -129,7 +132,14 @@ export default function RouteMap({
             key={`wp-${i}`}
             position={[w.point.lat, w.point.lon]}
             icon={waypointIcon(w.kind)}
-            eventHandlers={{ click: (e) => DomEvent.stopPropagation(e) }}
+            draggable={!!onMarkerDragEnd && !locked}
+            eventHandlers={{
+              click: (e) => DomEvent.stopPropagation(e),
+              dragend: (e) => {
+                const ll = e.target.getLatLng();
+                onMarkerDragEnd?.(w.kind, w.stopIndex, { lat: ll.lat, lon: ll.lng });
+              },
+            }}
           >
             <Tooltip>
               {w.kind === "origin" ? "Origem" : w.kind === "destination" ? "Destino" : "Parada"}
