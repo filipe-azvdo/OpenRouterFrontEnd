@@ -9,8 +9,8 @@ interface RouteSummaryProps {
 
 function Stat({ value, label }: { value: string; label: string }) {
   return (
-    <div className="px-1">
-      <div className="font-editorial text-stat leading-none text-ink">{value}</div>
+    <div className="min-w-0 px-1">
+      <div className="break-words font-editorial text-stat leading-none text-ink">{value}</div>
       <div className="mt-1.5 text-[11px] font-semibold uppercase tracking-wider text-steel">
         {label}
       </div>
